@@ -102,6 +102,384 @@
     font-family: monospace;
 }
 
+/* ═══════════════════════════════════════
+   PLC CONVERTER – Register Input Grid
+   ═══════════════════════════════════════ */
+
+/* Register input grid */
+.register-input-grid {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+.reg-input-block {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 170px;
+    flex: 1;
+    max-width: 240px;
+}
+
+.reg-input-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.reg-addr-badge {
+    background: var(--rz-primary);
+    color: white;
+    border-radius: 4px;
+    padding: 2px 8px;
+    font-family: monospace;
+    font-size: 0.82rem;
+    font-weight: 700;
+}
+
+.reg-addr-note {
+    font-size: 0.72rem;
+    opacity: 0.55;
+}
+
+.reg-input-hint {
+    min-height: 18px;
+    font-family: monospace;
+    font-size: 0.78rem;
+}
+
+/* Reg count badge */
+.reg-count-badge {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--rz-primary);
+    color: white;
+    box-shadow: 0 2px 12px rgba(59, 130, 246, 0.35);
+}
+
+.reg-count-num {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.reg-count-label {
+    font-size: 0.65rem;
+    opacity: 0.85;
+    letter-spacing: 0.3px;
+}
+
+/* Input register chip (result summary) */
+.input-reg-chip {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border: 1.5px solid var(--rz-primary);
+    border-radius: 6px;
+    overflow: hidden;
+    min-width: 72px;
+}
+
+.chip-label {
+    background: var(--rz-primary);
+    color: white;
+    font-family: monospace;
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    width: 100%;
+    text-align: center;
+}
+
+.chip-val {
+    font-family: monospace;
+    font-size: 0.95rem;
+    font-weight: 800;
+    padding: 4px 8px;
+    color: var(--rz-primary);
+}
+
+/* Register visual block (result) */
+.register-visual {
+    display: flex;
+    gap: 1.2rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+.reg-visual-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.reg-visual-header {
+    font-family: monospace;
+    font-size: 0.78rem;
+    font-weight: 700;
+    opacity: 0.7;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.reg-visual-bytes {
+    display: flex;
+    border: 2px solid var(--rz-primary);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.reg-visual-byte {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 8px 14px;
+    gap: 3px;
+}
+
+.reg-visual-byte.hi-b {
+    background: #1d4ed8;
+    color: white;
+    border-right: 1px solid rgba(255,255,255,0.25);
+}
+
+.reg-visual-byte.lo-b {
+    background: #3b82f6;
+    color: white;
+}
+
+.rvb-label {
+    font-size: 0.62rem;
+    opacity: 0.8;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+}
+
+.rvb-val {
+    font-family: monospace;
+    font-size: 1.3rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.rvb-bin {
+    font-family: monospace;
+    font-size: 0.6rem;
+    opacity: 0.75;
+    letter-spacing: 1px;
+}
+
+.reg-visual-footer {
+    font-family: monospace;
+    font-size: 0.72rem;
+    opacity: 0.6;
+}
+
+/* Byte order diagram */
+.byte-order-diagram {
+    background: rgba(0,0,0,0.04);
+    border-radius: 6px;
+    padding: 6px 10px;
+}
+
+/* ═══════════════════════════════════════
+   PLC CONVERTER – Register Layout (legacy)
+   ═══════════════════════════════════════ */
+
+/* Visual register block */
+.register-layout {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+}
+
+.register-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.reg-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    opacity: 0.6;
+    font-family: monospace;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.reg-bytes {
+    display: flex;
+    border: 2px solid var(--rz-primary);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.reg-byte {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 12px;
+    gap: 2px;
+}
+
+.reg-byte.hi {
+    background: #1d4ed8;
+    color: white;
+    border-right: 1px solid rgba(255,255,255,0.3);
+}
+
+.reg-byte.lo {
+    background: #3b82f6;
+    color: white;
+}
+
+.byte-label {
+    font-size: 0.65rem;
+    opacity: 0.8;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.byte-val {
+    font-family: monospace;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.reg-dec {
+    font-size: 0.72rem;
+    font-family: monospace;
+    opacity: 0.65;
+}
+
+/* Hex cell in grid */
+.hex-cell {
+    font-family: monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+}
+
+.hi-cell { background: #1d4ed8; color: white; }
+.lo-cell { background: #3b82f6; color: white; }
+
+/* Byte order diagram */
+.byte-diagram {
+    padding: 8px 12px;
+    background: rgba(0,0,0,0.05);
+    border-radius: 8px;
+}
+
+/* ═══════════════════════════════════════
+   PLC CONVERTER – Bool 16-bit Grid
+   ═══════════════════════════════════════ */
+
+.bool-byte-group {
+    margin-bottom: 0.75rem;
+}
+
+.bool-byte-label {
+    font-size: 0.78rem;
+    font-weight: 700;
+    opacity: 0.6;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-family: monospace;
+    margin-bottom: 0.4rem;
+}
+
+.bool-bit-row {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+}
+
+.bool-bit-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 52px;
+    border-radius: 8px;
+    border: 2px solid transparent;
+    transition: transform 0.1s, box-shadow 0.1s;
+    cursor: default;
+    user-select: none;
+}
+
+.bool-bit-cell:hover {
+    transform: scale(1.08);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.bool-bit-cell.bit-one {
+    background: #16a34a;
+    border-color: #15803d;
+    color: white;
+}
+
+.bool-bit-cell.bit-zero {
+    background: #f3f4f6;
+    border-color: #d1d5db;
+    color: #6b7280;
+}
+
+.bit-val-text {
+    font-family: monospace;
+    font-size: 1.3rem;
+    font-weight: 800;
+    line-height: 1;
+}
+
+.bit-pos-text {
+    font-family: monospace;
+    font-size: 0.6rem;
+    opacity: 0.7;
+    margin-top: 2px;
+}
+
+/* Separator between High Byte and Low Byte */
+.bool-byte-separator {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.6rem 0;
+    font-size: 0.72rem;
+    font-weight: 600;
+    opacity: 0.5;
+    font-family: monospace;
+    text-transform: uppercase;
+}
+
+.bool-sep-line {
+    flex: 1;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.4;
+}
+
+/* Legend dot */
+.bit-legend {
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    flex-shrink: 0;
+}
+
 /* Blazor error UI */
 #blazor-error-ui {
     background: lightyellow;

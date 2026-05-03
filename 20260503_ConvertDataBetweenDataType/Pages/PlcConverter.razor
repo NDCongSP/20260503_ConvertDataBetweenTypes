@@ -1,0 +1,759 @@
+@page "/plc"
+@inject PlcConversionService Svc
+
+<PageTitle>PLC / SCADA Register Converter</PageTitle>
+
+<RadzenStack Gap="1.5rem">
+
+    <!-- ══════ HEADER ══════ -->
+    <RadzenCard class="rz-p-4 header-card">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+            <RadzenIcon Icon="memory" Style="font-size:2.5rem; color:var(--rz-primary)" />
+            <RadzenStack Gap="0.2rem">
+                <RadzenText TextStyle="TextStyle.H4" Style="margin:0; font-weight:700">PLC / SCADA Register Converter</RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="opacity:0.7; margin:0">
+                    Chuyển đổi giữa thanh ghi Modbus Word (16-bit) và các kiểu dữ liệu PLC —
+                    hỗ trợ 4 Byte Order
+                </RadzenText>
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- ══════ CHỌN HƯỚNG CHUYỂN ĐỔI ══════ -->
+    <RadzenCard class="rz-p-3">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem" Wrap="FlexWrap.Wrap">
+            <RadzenText TextStyle="TextStyle.Subtitle1" Style="font-weight:600; margin:0">Hướng chuyển đổi:</RadzenText>
+            <RadzenRadioButtonList @bind-Value="mode" TValue="ConvertMode"
+                                   Orientation="Orientation.Horizontal"
+                                   Change="@OnModeChanged">
+                <Items>
+                    <RadzenRadioButtonListItem Text="📥  Decode: Thanh ghi → Giá trị" Value="ConvertMode.Decode" />
+                    <RadzenRadioButtonListItem Text="📤  Encode: Giá trị → Thanh ghi" Value="ConvertMode.Encode" />
+                </Items>
+            </RadzenRadioButtonList>
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- ══════ FORM ══════ -->
+    <RadzenCard class="rz-p-4">
+
+        <!-- Row 1: Type + ByteOrder -->
+        <RadzenRow Gap="1rem" Style="margin-bottom:1rem">
+
+            <!-- TARGET DATA TYPE -->
+            <RadzenColumn Size="12" SizeMD="5">
+                <RadzenStack Gap="0.4rem">
+                    <RadzenLabel Style="font-weight:600"
+                                 Text="@(mode == ConvertMode.Decode ? "Kiểu dữ liệu đích (To)" : "Kiểu dữ liệu nguồn (From)")" />
+                    <RadzenDropDown Data="@allInfos"
+                                    @bind-Value="selectedType"
+                                    TextProperty="Name"
+                                    ValueProperty="Type"
+                                    Style="width:100%"
+                                    Change="@OnTypeChanged">
+                        <Template Context="item">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                <RadzenBadge Text="@item.Category"
+                                             BadgeStyle="@GetBadgeStyle(item.Category)"
+                                             Style="font-size:0.68rem; min-width:46px" />
+                                <b style="font-family:monospace">@item.Name</b>
+                                <span style="opacity:0.55; font-size:0.8rem">
+                                    @(item.BitWidth > 0 ? $"{item.BitWidth}-bit · {GetRegLabel(item.Type)}" : "n-bit")
+                                </span>
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDropDown>
+
+                    @if (selectedInfo != null)
+                    {
+                        <RadzenAlert AlertStyle="@(mode == ConvertMode.Decode ? AlertStyle.Info : AlertStyle.Success)"
+                                     Shade="Shade.Lighter" Size="AlertSize.ExtraSmall" AllowClose="false">
+                            <b>@selectedInfo.Name</b> · @selectedInfo.Description
+                            @if (!string.IsNullOrEmpty(selectedInfo.ValidChars))
+                            {
+                                <span> · Phạm vi: <b>@selectedInfo.ValidChars</b></span>
+                            }
+                        </RadzenAlert>
+                    }
+                </RadzenStack>
+            </RadzenColumn>
+
+            <!-- REG COUNT INFO -->
+            <RadzenColumn Size="12" SizeMD="2">
+                <RadzenStack Gap="0.4rem" AlignItems="AlignItems.Center" Style="padding-top:1.8rem">
+                    <div class="reg-count-badge">
+                        <span class="reg-count-num">@RegCount</span>
+                        <span class="reg-count-label">thanh ghi</span>
+                    </div>
+                    <RadzenText Style="font-size:0.75rem; opacity:0.6; text-align:center">
+                        = @(RegCount * 16)-bit raw data
+                    </RadzenText>
+                </RadzenStack>
+            </RadzenColumn>
+
+            <!-- BYTE ORDER -->
+            <RadzenColumn Size="12" SizeMD="5">
+                <RadzenStack Gap="0.4rem">
+                    <RadzenLabel Text="Byte Order (thứ tự byte trong thanh ghi)" Style="font-weight:600" />
+                    <RadzenDropDown Data="@byteOrderInfos"
+                                    @bind-Value="byteOrder"
+                                    TextProperty="Name"
+                                    ValueProperty="Order"
+                                    Style="width:100%"
+                                    Change="@OnByteOrderChanged">
+                        <Template Context="bo">
+                            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.6rem">
+                                <RadzenBadge Text="@bo.ShortName" BadgeStyle="BadgeStyle.Dark"
+                                             Style="font-family:monospace; font-size:0.72rem; min-width:40px" />
+                                <span>@bo.Name</span>
+                            </RadzenStack>
+                        </Template>
+                    </RadzenDropDown>
+
+                    <!-- Byte order diagram -->
+                    <div class="byte-order-diagram">
+                        @GetByteOrderDiagram()
+                    </div>
+                </RadzenStack>
+            </RadzenColumn>
+
+        </RadzenRow>
+
+        <!-- Row 2: INPUT VALUES -->
+        @if (mode == ConvertMode.Decode)
+        {
+            <!-- DECODE: N register inputs -->
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                         Gap="1rem" Style="margin-bottom:0.8rem; flex-wrap:wrap">
+                <RadzenText TextStyle="TextStyle.Subtitle1" Style="font-weight:600; margin:0">
+                    📋 Nhập @RegCount thanh ghi Word (16-bit) từ thiết bị
+                </RadzenText>
+                @if (selectedType == PlcDataType.String)
+                {
+                    <!-- String: cho phép chọn số thanh ghi động -->
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                        <RadzenText Style="font-size:0.85rem; opacity:0.7; margin:0">Số thanh ghi:</RadzenText>
+                        <RadzenNumeric TValue="int"
+                                       Value="@stringDecodeRegCount"
+                                       ValueChanged="@OnStringDecodeRegCountChanged"
+                                       Min="1" Max="16" Step="1"
+                                       Style="width:80px" />
+                        <RadzenText Style="font-size:0.78rem; opacity:0.55; margin:0">
+                            (@(stringDecodeRegCount * 2) ký tự tối đa)
+                        </RadzenText>
+                    </RadzenStack>
+                }
+            </RadzenStack>
+
+            <div class="register-input-grid">
+                @for (int idx = 0; idx < RegCount; idx++)
+                {
+                    int i = idx; // capture
+                    // Guard: đảm bảo list đủ phần tử (tránh crash khi Blazor re-render trước InitRegInputs)
+                    if (i >= regInputs.Count) { regInputs.Add(""); }
+                    if (i >= regErrors.Count) { regErrors.Add(""); }
+                    <div class="reg-input-block">
+                        <div class="reg-input-label">
+                            <span class="reg-addr-badge">Reg[@i]</span>
+                            <span class="reg-addr-note">địa chỉ base+@i</span>
+                        </div>
+                        <RadzenTextBox Value="@regInputs[i]"
+                                       ValueChanged="@((string v) => OnRegInputChanged(i, v))"
+                                       Placeholder="0x0000 hoặc 0-65535"
+                                       Style="width:100%; font-family:monospace; font-size:1.05rem; text-align:center" />
+                        <div class="reg-input-hint">
+                            @if (!string.IsNullOrEmpty(regErrors[i]))
+                            {
+                                <span style="color:var(--rz-danger); font-size:0.78rem">⚠️ @regErrors[i]</span>
+                            }
+                            else if (!string.IsNullOrEmpty(regInputs[i]))
+                            {
+                                var parsed = TryParseReg(regInputs[i]);
+                                <span style="color:var(--rz-success); font-size:0.78rem">
+                                    = 0x@(parsed.ToString("X4")) = @parsed
+                                </span>
+                            }
+                        </div>
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <!-- ENCODE: single typed value input -->
+            <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                         Gap="0.8rem" Style="margin-bottom:0.8rem; flex-wrap:wrap">
+                <RadzenText TextStyle="TextStyle.Subtitle1" Style="font-weight:600; margin:0">
+                    ✏️ Nhập giá trị @(selectedInfo?.Name ?? "") cần mã hoá ra thanh ghi
+                </RadzenText>
+                @if (selectedType == PlcDataType.String && !string.IsNullOrEmpty(singleInput))
+                {
+                    <RadzenBadge Text="@($"{singleInput.Length} ký tự → {RegCount} thanh ghi")"
+                                 BadgeStyle="BadgeStyle.Info" Style="font-family:monospace" />
+                }
+            </RadzenStack>
+
+            <RadzenStack Gap="0.4rem" Style="max-width:500px">
+                <RadzenTextBox @bind-Value="singleInput"
+                               Placeholder="@($"Ví dụ: {selectedInfo?.Example ?? "..."}")"
+                               Style="font-family:monospace; font-size:1.1rem; width:100%"
+                               Change="@OnSingleInputChanged" />
+                @if (!string.IsNullOrEmpty(singleError))
+                {
+                    <RadzenText Style="color:var(--rz-danger); font-size:0.85rem">⚠️ @singleError</RadzenText>
+                }
+                else if (!string.IsNullOrEmpty(singleInput))
+                {
+                    <RadzenText Style="color:var(--rz-success); font-size:0.85rem">✅ Hợp lệ</RadzenText>
+                }
+            </RadzenStack>
+        }
+
+        <!-- BUTTONS -->
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Style="margin-top:1.5rem">
+            <RadzenButton Text="@(mode == ConvertMode.Decode ? "📥 Decode" : "📤 Encode")"
+                          ButtonStyle="ButtonStyle.Primary" Size="ButtonSize.Large"
+                          Click="@DoConvert" Disabled="@(!CanConvert())"
+                          Style="min-width:140px" />
+            <RadzenButton Text="🗑 Xóa" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Large"
+                          Click="@ClearAll" />
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- ══════ RESULT ══════ -->
+    @if (result != null)
+    {
+        @if (!result.IsSuccess)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false">
+                <b>Lỗi:</b> @result.ErrorMessage
+            </RadzenAlert>
+        }
+        else
+        {
+            <!-- Summary card -->
+            <RadzenCard class="rz-p-4 result-card">
+                @if (mode == ConvertMode.Decode)
+                {
+                    <RadzenRow AlignItems="AlignItems.Center" Gap="1rem">
+                        <RadzenColumn Size="12" SizeMD="5">
+                            <RadzenText TextStyle="TextStyle.Overline" Style="opacity:0.6">THANH GHI ĐẦU VÀO</RadzenText>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px">
+                                @for (int i = 0; i < RegCount; i++)
+                                {
+                                    int idx = i;
+                                    var parsed = TryParseReg(regInputs[idx]);
+                                    <div class="input-reg-chip">
+                                        <span class="chip-label">Reg[@idx]</span>
+                                        <span class="chip-val">0x@(parsed.ToString("X4"))</span>
+                                    </div>
+                                }
+                            </div>
+                            @if (!string.IsNullOrEmpty(result.RawHex))
+                            {
+                                <RadzenBadge Text="@($"Raw: {result.RawHex}")" BadgeStyle="BadgeStyle.Secondary"
+                                             Style="font-family:monospace; margin-top:6px" />
+                            }
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="2" Style="text-align:center">
+                            <RadzenIcon Icon="arrow_forward" Style="font-size:2rem; color:var(--rz-primary)" />
+                            <div style="font-size:0.75rem; opacity:0.6">@byteOrder</div>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="5">
+                            <RadzenText TextStyle="TextStyle.Overline" Style="opacity:0.6">
+                                KẾT QUẢ (@selectedInfo?.Name)
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.H4"
+                                        Style="font-family:monospace; font-weight:800; color:var(--rz-primary); word-break:break-all; margin-top:4px">
+                                @result.ResultValue
+                            </RadzenText>
+                            <RadzenButton Text="📋 Copy" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                          Click="@CopyResult" Style="margin-top:6px" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+                else
+                {
+                    <RadzenRow AlignItems="AlignItems.Center" Gap="1rem">
+                        <RadzenColumn Size="12" SizeMD="5">
+                            <RadzenText TextStyle="TextStyle.Overline" Style="opacity:0.6">
+                                GIÁ TRỊ ĐẦU VÀO (@selectedInfo?.Name)
+                            </RadzenText>
+                            <RadzenText TextStyle="TextStyle.H5"
+                                        Style="font-family:monospace; font-weight:700; word-break:break-all; margin-top:4px">
+                                @singleInput
+                            </RadzenText>
+                            @if (!string.IsNullOrEmpty(result.RawHex))
+                            {
+                                <RadzenBadge Text="@($"Raw: {result.RawHex}")" BadgeStyle="BadgeStyle.Secondary"
+                                             Style="font-family:monospace; margin-top:6px" />
+                            }
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="2" Style="text-align:center">
+                            <RadzenIcon Icon="arrow_forward" Style="font-size:2rem; color:var(--rz-primary)" />
+                            <div style="font-size:0.75rem; opacity:0.6">@byteOrder</div>
+                        </RadzenColumn>
+                        <RadzenColumn Size="12" SizeMD="5">
+                            <RadzenText TextStyle="TextStyle.Overline" Style="opacity:0.6">
+                                THANH GHI KẾT QUẢ (@RegCount × Word 16-bit)
+                            </RadzenText>
+                            <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px">
+                                @if (result.Registers != null)
+                                {
+                                    @foreach (var reg in result.Registers)
+                                    {
+                                        <div class="input-reg-chip">
+                                            <span class="chip-label">Reg[@(reg.RegisterIndex)]</span>
+                                            <span class="chip-val">0x@(reg.RegisterHex)</span>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                            <RadzenButton Text="📋 Copy" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                          Click="@CopyResult" Style="margin-top:6px" />
+                        </RadzenColumn>
+                    </RadzenRow>
+                }
+            </RadzenCard>
+
+            <!-- ═══ BOOL BIT GRID (chỉ hiện khi decode ra Bool) ═══ -->
+            @if (result.IsBoolResult)
+            {
+                <RadzenCard class="rz-p-4">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                                 Gap="0.8rem" Style="margin-bottom:1.2rem">
+                        <RadzenIcon Icon="grid_on" Style="color:var(--rz-primary)" />
+                        <RadzenText TextStyle="TextStyle.H6" Style="font-weight:600; margin:0">
+                            Bản đồ 16-bit Bool
+                        </RadzenText>
+                        <RadzenBadge Text="@($"0x{result.BoolWord:X4} = {result.BoolWord}₁₀")"
+                                     BadgeStyle="BadgeStyle.Secondary"
+                                     Style="font-family:monospace" />
+                        <RadzenBadge Text="@($"{CountOnes(result.BoolHighByte + result.BoolLowByte)}/16 bit = 1")"
+                                     BadgeStyle="BadgeStyle.Warning" />
+                    </RadzenStack>
+
+                    <!-- High Byte -->
+                    <div class="bool-byte-group">
+                        <div class="bool-byte-label">High Byte — Bit [15 … 8]</div>
+                        <div class="bool-bit-row">
+                            @for (int b = 7; b >= 0; b--)
+                            {
+                                int bitPos = b + 8;
+                                char bitVal = result.BoolHighByte![7 - b];
+                                bool isOne = bitVal == '1';
+                                <div class="bool-bit-cell @(isOne ? "bit-one" : "bit-zero")">
+                                    <span class="bit-val-text">@bitVal</span>
+                                    <span class="bit-pos-text">@bitPos</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <div class="bool-byte-separator">
+                        <span>High Byte</span>
+                        <div class="bool-sep-line"></div>
+                        <span>Low Byte</span>
+                    </div>
+
+                    <!-- Low Byte -->
+                    <div class="bool-byte-group">
+                        <div class="bool-byte-label">Low Byte — Bit [7 … 0]</div>
+                        <div class="bool-bit-row">
+                            @for (int b = 7; b >= 0; b--)
+                            {
+                                int bitPos = b;
+                                char bitVal = result.BoolLowByte![7 - b];
+                                bool isOne = bitVal == '1';
+                                <div class="bool-bit-cell @(isOne ? "bit-one" : "bit-zero")">
+                                    <span class="bit-val-text">@bitVal</span>
+                                    <span class="bit-pos-text">@bitPos</span>
+                                </div>
+                            }
+                        </div>
+                    </div>
+
+                    <!-- Legend -->
+                    <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem"
+                                 Style="margin-top:1rem; flex-wrap:wrap">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.4rem">
+                            <div class="bit-legend bit-one"></div>
+                            <RadzenText TextStyle="TextStyle.Body2" Style="margin:0">Bit = 1 (True)</RadzenText>
+                        </RadzenStack>
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.4rem">
+                            <div class="bit-legend bit-zero"></div>
+                            <RadzenText TextStyle="TextStyle.Body2" Style="margin:0">Bit = 0 (False)</RadzenText>
+                        </RadzenStack>
+
+                        @{
+                            var setBitList = new List<int>();
+                            string allBits = (result.BoolHighByte ?? "") + (result.BoolLowByte ?? "");
+                            for (int b = 0; b < 16; b++)
+                                if (allBits.Length > b && allBits[b] == '1')
+                                    setBitList.Add(15 - b);
+                        }
+                        @if (setBitList.Count > 0)
+                        {
+                            <RadzenText TextStyle="TextStyle.Body2" Style="margin:0; opacity:0.7">
+                                Bit bật: @string.Join(", ", setBitList.Select(b => $"Bit{b}"))
+                            </RadzenText>
+                        }
+                    </RadzenStack>
+                </RadzenCard>
+            }
+
+            <!-- Register layout table -->
+            @if (result.Registers?.Count > 0)
+            {
+                <RadzenCard class="rz-p-4">
+                    <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center"
+                                 Gap="0.8rem" Style="margin-bottom:1rem">
+                        <RadzenIcon Icon="table_rows" Style="color:var(--rz-primary)" />
+                        <RadzenText TextStyle="TextStyle.H6" Style="font-weight:600; margin:0">
+                            Sơ đồ thanh ghi Modbus
+                        </RadzenText>
+                        <RadzenBadge Text="@GetBoName()" BadgeStyle="BadgeStyle.Primary" />
+                        <RadzenBadge Text="@($"{RegCount} × Word (16-bit)")" BadgeStyle="BadgeStyle.Info" />
+                    </RadzenStack>
+
+                    <!-- Visual blocks -->
+                    <div class="register-visual">
+                        @foreach (var reg in result.Registers)
+                        {
+                            <div class="reg-visual-block">
+                                <div class="reg-visual-header">Reg[@(reg.RegisterIndex)]</div>
+                                <div class="reg-visual-bytes">
+                                    <div class="reg-visual-byte hi-b">
+                                        <div class="rvb-label">High Byte</div>
+                                        <div class="rvb-val">@(reg.HighByte)</div>
+                                        <div class="rvb-bin">@HexToBinByte(reg.HighByte)</div>
+                                    </div>
+                                    <div class="reg-visual-byte lo-b">
+                                        <div class="rvb-label">Low Byte</div>
+                                        <div class="rvb-val">@(reg.LowByte)</div>
+                                        <div class="rvb-bin">@HexToBinByte(reg.LowByte)</div>
+                                    </div>
+                                </div>
+                                <div class="reg-visual-footer">0x@(reg.RegisterHex) = @(reg.RegisterDec)</div>
+                            </div>
+                        }
+                    </div>
+
+                    <!-- Detail table -->
+                    <RadzenDataGrid Data="@result.Registers" TItem="RegisterRow"
+                                    GridLines="DataGridGridLines.Both"
+                                    Style="margin-top:1.2rem; font-family:monospace">
+                        <Columns>
+                            <RadzenDataGridColumn TItem="RegisterRow" Title="Thanh ghi" Width="120px">
+                                <Template Context="r">
+                                    <RadzenBadge Text="@($"Reg [{r.RegisterIndex}]")" BadgeStyle="BadgeStyle.Light" />
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="RegisterRow" Title="High Byte [15:8]" Width="140px">
+                                <Template Context="r">
+                                    <RadzenStack Gap="2px">
+                                        <span class="hex-cell hi-cell">@r.HighByte</span>
+                                        <span style="font-size:0.7rem; opacity:0.6">@HexToBinByte(r.HighByte)</span>
+                                    </RadzenStack>
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="RegisterRow" Title="Low Byte [7:0]" Width="140px">
+                                <Template Context="r">
+                                    <RadzenStack Gap="2px">
+                                        <span class="hex-cell lo-cell">@r.LowByte</span>
+                                        <span style="font-size:0.7rem; opacity:0.6">@HexToBinByte(r.LowByte)</span>
+                                    </RadzenStack>
+                                </Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="RegisterRow" Title="Hex Word" Width="110px">
+                                <Template Context="r"><b>0x@r.RegisterHex</b></Template>
+                            </RadzenDataGridColumn>
+                            <RadzenDataGridColumn TItem="RegisterRow" Property="RegisterDec" Title="Decimal" Width="100px" />
+                            <RadzenDataGridColumn TItem="RegisterRow" Property="Note" Title="Địa chỉ / Ghi chú" />
+                        </Columns>
+                    </RadzenDataGrid>
+                </RadzenCard>
+            }
+
+            <!-- Steps -->
+            <RadzenCard class="rz-p-4">
+                <RadzenText TextStyle="TextStyle.H6" Style="font-weight:600; margin-bottom:1rem">
+                    📖 Diễn giải từng bước
+                </RadzenText>
+                @foreach (var s in result.Steps)
+                {
+                    <div class="step-box">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="1rem">
+                            <div class="step-number">@s.StepNumber</div>
+                            <RadzenStack Gap="0.5rem" Style="flex:1">
+                                <RadzenText TextStyle="TextStyle.Subtitle1" Style="font-weight:700; margin:0">@s.Title</RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" Style="margin:0; opacity:0.85">@s.Description</RadzenText>
+                                @if (!string.IsNullOrEmpty(s.Formula))
+                                {
+                                    <div class="formula-box"><pre style="margin:0;white-space:pre-wrap">@s.Formula</pre></div>
+                                }
+                                @if (!string.IsNullOrEmpty(s.StepResult))
+                                {
+                                    <RadzenText Style="font-weight:600; color:var(--rz-primary); font-family:monospace">
+                                        → @s.StepResult
+                                    </RadzenText>
+                                }
+                            </RadzenStack>
+                        </RadzenStack>
+                    </div>
+                }
+            </RadzenCard>
+        }
+    }
+
+    <!-- ══════ REFERENCE TABLE ══════ -->
+    <RadzenCard class="rz-p-4">
+        <RadzenText TextStyle="TextStyle.H6" Style="font-weight:600; margin-bottom:1rem">
+            📚 Bảng kiểu dữ liệu PLC & số thanh ghi tương ứng
+        </RadzenText>
+        <RadzenDataGrid Data="@allInfos" TItem="PlcDataTypeInfo" GridLines="DataGridGridLines.Both">
+            <Columns>
+                <RadzenDataGridColumn TItem="PlcDataTypeInfo" Title="Kiểu" Width="110px">
+                    <Template Context="info">
+                        <RadzenBadge Text="@info.Name" BadgeStyle="@GetBadgeStyle(info.Category)"
+                                     Style="font-family:monospace" />
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="PlcDataTypeInfo" Title="Bit" Width="80px">
+                    <Template Context="info">
+                        <span style="font-family:monospace; font-weight:600">
+                            @(info.BitWidth > 0 ? $"{info.BitWidth}-bit" : "n-bit")
+                        </span>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="PlcDataTypeInfo" Title="Thanh ghi" Width="105px">
+                    <Template Context="info">
+                        <span style="font-family:monospace; color:var(--rz-primary); font-weight:700">
+                            @GetRegLabel(info.Type)
+                        </span>
+                    </Template>
+                </RadzenDataGridColumn>
+                <RadzenDataGridColumn TItem="PlcDataTypeInfo" Property="Description" Title="Mô tả" />
+                <RadzenDataGridColumn TItem="PlcDataTypeInfo" Property="ValidChars" Title="Phạm vi" Width="200px" />
+                <RadzenDataGridColumn TItem="PlcDataTypeInfo" Property="Example" Title="Ví dụ" Width="120px">
+                    <Template Context="info"><code>@info.Example</code></Template>
+                </RadzenDataGridColumn>
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+
+</RadzenStack>
+
+@code {
+    // ── Enums ─────────────────────────────
+    public enum ConvertMode { Decode, Encode }
+
+    // ── State ─────────────────────────────
+    private ConvertMode mode = ConvertMode.Decode;
+    private PlcDataType selectedType = PlcDataType.DWord;
+    private PlcByteOrder byteOrder = PlcByteOrder.HBHW;
+
+    // Decode inputs
+    private List<string> regInputs = new();
+    private List<string> regErrors = new();
+
+    // Encode input
+    private string singleInput = "";
+    private string singleError = "";
+
+    private PlcConversionResult? result;
+    private List<PlcDataTypeInfo> allInfos = new();
+    private List<ByteOrderInfo> byteOrderInfos = new();
+
+    private PlcDataTypeInfo? selectedInfo => allInfos.FirstOrDefault(x => x.Type == selectedType);
+
+    // Số thanh ghi dùng cho String Decode (user chọn)
+    private int stringDecodeRegCount = 4;
+
+    private int RegCount
+    {
+        get
+        {
+            if (selectedType == PlcDataType.String)
+            {
+                if (mode == ConvertMode.Encode)
+                    return PlcConversionService.GetStringRegisterCount(singleInput ?? "");
+                return stringDecodeRegCount;
+            }
+            return Svc.GetRegisterCount(selectedType);
+        }
+    }
+
+    [Inject] IJSRuntime JS { get; set; } = default!;
+
+    // ── Init ──────────────────────────────
+    protected override void OnInitialized()
+    {
+        allInfos = Svc.GetDataTypeInfos();
+        byteOrderInfos = Svc.GetByteOrderInfos();
+        InitRegInputs();
+    }
+
+    private void InitRegInputs()
+    {
+        int n = Math.Max(1, RegCount); // luôn ít nhất 1 phần tử
+        var old = regInputs ?? new List<string>();
+        regInputs = Enumerable.Range(0, n)
+                               .Select(i => i < old.Count ? old[i] : "")
+                               .ToList();
+        regErrors = Enumerable.Repeat("", n).ToList();
+    }
+
+    // ── Events ────────────────────────────
+    private void OnModeChanged(ConvertMode m)
+    {
+        // ⚠ Radzen gọi Change TRƯỚC khi @bind-Value cập nhật → phải tự set
+        mode = m;
+        result = null;
+        singleInput = "";
+        singleError = "";
+        InitRegInputs();
+    }
+
+    // Radzen DropDown với ValueProperty truyền vào Change là giá trị của property đó (PlcDataType)
+    private void OnTypeChanged(object newTypeObj)
+    {
+        if (newTypeObj is PlcDataType newType)
+            selectedType = newType;
+        result = null;
+        InitRegInputs();
+    }
+
+    private void OnByteOrderChanged(object boObj)
+    {
+        if (boObj is PlcByteOrder bo)
+            byteOrder = bo;
+        result = null;
+    }
+
+    private void OnRegInputChanged(int i, string val)
+    {
+        regInputs[i] = val;
+        regErrors[i] = "";
+        result = null;
+        if (!string.IsNullOrWhiteSpace(val))
+        {
+            var (ok, err) = Svc.ValidateRegister(val);
+            if (!ok) regErrors[i] = err;
+        }
+    }
+
+    private void OnSingleInputChanged(string val)
+    {
+        singleInput = val;
+        singleError = "";
+        result = null;
+        if (!string.IsNullOrWhiteSpace(val))
+        {
+            var (ok, err) = Svc.Validate(val, selectedType);
+            if (!ok) singleError = err;
+        }
+    }
+
+    private void OnStringDecodeRegCountChanged(int n)
+    {
+        stringDecodeRegCount = Math.Clamp(n, 1, 16);
+        result = null;
+        InitRegInputs();
+    }
+
+    private bool CanConvert()
+    {
+        if (mode == ConvertMode.Decode)
+            return regInputs.Count == RegCount &&
+                   regInputs.All(r => !string.IsNullOrWhiteSpace(r)) &&
+                   regErrors.All(e => string.IsNullOrEmpty(e));
+        else
+            return !string.IsNullOrWhiteSpace(singleInput) && string.IsNullOrEmpty(singleError);
+    }
+
+    private void DoConvert()
+    {
+        result = mode == ConvertMode.Decode
+            ? Svc.DecodeFromRegisters(regInputs, selectedType, byteOrder)
+            : Svc.EncodeToRegisters(singleInput, selectedType, byteOrder);
+    }
+
+    private void ClearAll()
+    {
+        result = null;
+        singleInput = "";
+        singleError = "";
+        InitRegInputs();
+    }
+
+    private async Task CopyResult()
+    {
+        if (result?.IsSuccess == true)
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", result.ResultValue);
+    }
+
+    // ── Helpers ───────────────────────────
+    private string GetRegLabel(PlcDataType t)
+    {
+        int n = Svc.GetRegisterCount(t);
+        return n == 1 ? "1 × Word" : $"{n} × Word";
+    }
+
+    private string GetBoName() =>
+        byteOrderInfos.FirstOrDefault(x => x.Order == byteOrder)?.ShortName ?? byteOrder.ToString();
+
+    private static ushort TryParseReg(string input)
+    {
+        if (string.IsNullOrWhiteSpace(input)) return 0;
+        var s = input.Trim().ToUpper().Replace("0X", "").Replace(" ", "");
+        if (s.Any(c => c >= 'A' && c <= 'F') || s.Length > 4)
+            try { return (ushort)System.Convert.ToInt32(s, 16); } catch { return 0; }
+        if (ushort.TryParse(s, out var v)) return v;
+        try { return (ushort)System.Convert.ToInt32(s, 16); } catch { return 0; }
+    }
+
+    private static string HexToBinByte(string hex)
+    {
+        try { return System.Convert.ToString(System.Convert.ToInt32(hex, 16), 2).PadLeft(8, '0'); }
+        catch { return "00000000"; }
+    }
+
+    private BadgeStyle GetBadgeStyle(string cat) => cat switch
+    {
+        "1-bit"  => BadgeStyle.Warning,
+        "16-bit" => BadgeStyle.Info,
+        "32-bit" => BadgeStyle.Success,
+        "64-bit" => BadgeStyle.Danger,
+        "Text"   => BadgeStyle.Secondary,
+        _        => BadgeStyle.Light
+    };
+
+    private static int CountOnes(string? bits) =>
+        bits?.Count(c => c == '1') ?? 0;
+
+    private MarkupString GetByteOrderDiagram()
+    {
+        // Hiển thị sơ đồ B3 B2 B1 B0 cho 32-bit example
+        var (colors, labels) = byteOrder switch
+        {
+            PlcByteOrder.HBHW => (new[]{"#1d4ed8","#3b82f6","#60a5fa","#93c5fd"}, new[]{"B3","B2","B1","B0"}),
+            PlcByteOrder.HBLW => (new[]{"#60a5fa","#93c5fd","#1d4ed8","#3b82f6"}, new[]{"B1","B0","B3","B2"}),
+            PlcByteOrder.LBHW => (new[]{"#3b82f6","#1d4ed8","#93c5fd","#60a5fa"}, new[]{"B2","B3","B0","B1"}),
+            PlcByteOrder.LBLW => (new[]{"#93c5fd","#60a5fa","#3b82f6","#1d4ed8"}, new[]{"B0","B1","B2","B3"}),
+            _ => (new[]{"#1d4ed8","#3b82f6","#60a5fa","#93c5fd"}, new[]{"B3","B2","B1","B0"})
+        };
+        var sb = new System.Text.StringBuilder();
+        sb.Append("<div style='display:flex;gap:3px;align-items:center'>");
+        sb.Append("<span style='font-size:0.72rem;opacity:0.5;margin-right:4px'>Reg[0]</span>");
+        for (int i = 0; i < 2; i++)
+            sb.Append($"<div style='background:{colors[i]};color:#fff;border-radius:3px;padding:3px 8px;font-family:monospace;font-size:0.78rem;font-weight:700'>{labels[i]}</div>");
+        sb.Append("<span style='opacity:0.3;margin:0 4px'>|</span>");
+        sb.Append("<span style='font-size:0.72rem;opacity:0.5;margin-right:4px'>Reg[1]</span>");
+        for (int i = 2; i < 4; i++)
+            sb.Append($"<div style='background:{colors[i]};color:#fff;border-radius:3px;padding:3px 8px;font-family:monospace;font-size:0.78rem;font-weight:700'>{labels[i]}</div>");
+        sb.Append("</div>");
+        sb.Append("<div style='font-size:0.7rem;opacity:0.5;margin-top:3px'>B3=MSB … B0=LSB (32-bit). Màu đậm = byte có giá trị cao hơn.</div>");
+        return new MarkupString(sb.ToString());
+    }
+}

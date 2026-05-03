@@ -12,6 +12,7 @@ builder.Services.AddRadzenComponents();
 
 // Application services
 builder.Services.AddScoped<ConversionService>();
+builder.Services.AddScoped<PlcConversionService>();
 
 var app = builder.Build();
 
