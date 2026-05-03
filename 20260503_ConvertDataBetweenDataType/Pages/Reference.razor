@@ -37,11 +37,12 @@
         <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.5rem;">
             @for (int i = 32; i < 127; i++)
             {
-                var code = i;
-                var ch = ((char)code).ToString();
+                var asciiDec = i;
+                var asciiChar = ((char)asciiDec).ToString();
+                var asciiHex = asciiDec.ToString("X2");
                 <div class="ascii-cell">
-                    <span class="ascii-char">@ch</span>
-                    <span class="ascii-code">@code | @code.ToString("X2")</span>
+                    <span class="ascii-char">@asciiChar</span>
+                    <span class="ascii-code">@asciiDec | @asciiHex</span>
                 </div>
             }
         </div>

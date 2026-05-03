@@ -208,7 +208,7 @@
                                     {
                                         <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="Nguồn" />
                                     }
-                                    <RadzenText Style="font-weight:@(row.IsSource ? "700" : "400"); font-family:monospace">
+                                    <RadzenText Style="@GetTypeNameStyle(row.IsSource)">
                                         @row.TypeName
                                     </RadzenText>
                                 </RadzenStack>
@@ -216,7 +216,7 @@
                         </RadzenDataGridColumn>
                         <RadzenDataGridColumn TItem="AllTypesRow" Property="Value" Title="Giá trị tương đương">
                             <Template Context="row">
-                                <RadzenText Style="font-family:monospace; font-size:1rem; color:@(row.IsSource ? "var(--rz-primary)" : "inherit"); font-weight:@(row.IsSource ? "700" : "400")">
+                                <RadzenText Style="@GetValueStyle(row.IsSource)">
                                     @row.Value
                                 </RadzenText>
                             </Template>
@@ -286,6 +286,16 @@
     // ─── Helpers ─────────────────────────────────
     private string GetPlaceholder() =>
         fromInfo != null ? $"Nhập {fromInfo.Name} (vd: {fromInfo.Example})" : "Nhập giá trị...";
+
+    private static string GetTypeNameStyle(bool isSource) =>
+        isSource
+            ? "font-weight:700; font-family:monospace"
+            : "font-weight:400; font-family:monospace";
+
+    private static string GetValueStyle(bool isSource) =>
+        isSource
+            ? "font-family:monospace; font-size:1rem; color:var(--rz-primary); font-weight:700"
+            : "font-family:monospace; font-size:1rem; color:inherit; font-weight:400";
 
     private bool CanConvert() =>
         fromType.HasValue && toType.HasValue && !string.IsNullOrWhiteSpace(inputValue) && string.IsNullOrEmpty(validationError);

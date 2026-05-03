@@ -34,7 +34,7 @@
         public string? RequestId { get; set; }
         public bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
 
-        [Microsoft.AspNetCore.Diagnostics.ResponseCache(Duration = 0, Location = Microsoft.AspNetCore.Mvc.ResponseCacheLocation.None, NoStore = true)]
+        [Microsoft.AspNetCore.Mvc.ResponseCache(Duration = 0, Location = Microsoft.AspNetCore.Mvc.ResponseCacheLocation.None, NoStore = true)]
         public void OnGet()
         {
             RequestId = System.Diagnostics.Activity.Current?.Id ?? HttpContext.TraceIdentifier;
