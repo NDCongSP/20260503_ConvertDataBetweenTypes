@@ -1,0 +1,350 @@
+@page "/"
+@inject ConversionService ConvSvc
+
+<PageTitle>Data Type Converter</PageTitle>
+
+<!-- ═══════════════════════════════════════════════
+     HEADER
+═══════════════════════════════════════════════ -->
+<RadzenStack Gap="1.5rem">
+
+    <RadzenCard class="rz-p-4 header-card">
+        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1rem">
+            <RadzenIcon Icon="swap_horiz" Style="font-size:2.5rem; color:var(--rz-primary)" />
+            <RadzenStack Gap="0.2rem">
+                <RadzenText TextStyle="TextStyle.H4" Style="margin:0; font-weight:700">
+                    Chuyển đổi kiểu dữ liệu
+                </RadzenText>
+                <RadzenText TextStyle="TextStyle.Body2" Style="opacity:0.7; margin:0">
+                    Hỗ trợ: DEC ↔ HEX ↔ BIN ↔ OCT ↔ WORD ↔ BYTE ↔ ASCII — kèm diễn giải từng bước
+                </RadzenText>
+            </RadzenStack>
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- ═══════════════════════════════════════════
+         FORM CHUYỂN ĐỔI
+    ═══════════════════════════════════════════ -->
+    <RadzenCard class="rz-p-4">
+        <RadzenText TextStyle="TextStyle.H6" Style="margin-bottom:1rem; font-weight:600">
+            ⚙️ Thiết lập chuyển đổi
+        </RadzenText>
+
+        <RadzenRow Gap="1rem">
+
+            <!-- FROM TYPE -->
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenStack Gap="0.4rem">
+                    <RadzenLabel Text="Kiểu dữ liệu nguồn (From)" Style="font-weight:600" />
+                    <RadzenDropDown Data="@dataTypes"
+                                    @bind-Value="fromType"
+                                    TextProperty="Name"
+                                    ValueProperty="Type"
+                                    Placeholder="Chọn kiểu nguồn..."
+                                    Style="width:100%"
+                                    Change="@OnFromTypeChanged" />
+                    @if (fromInfo != null)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Info" Shade="Shade.Lighter" Size="AlertSize.ExtraSmall"
+                                     AllowClose="false" Style="margin-top:4px">
+                            <b>Ký tự hợp lệ:</b> @fromInfo.ValidChars &nbsp;|&nbsp;
+                            <b>Ví dụ:</b> @fromInfo.Example
+                        </RadzenAlert>
+                    }
+                </RadzenStack>
+            </RadzenColumn>
+
+            <!-- INPUT VALUE -->
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenStack Gap="0.4rem">
+                    <RadzenLabel Text="Giá trị cần chuyển đổi (Value)" Style="font-weight:600" />
+                    <RadzenTextBox @bind-Value="inputValue"
+                                   Placeholder="@GetPlaceholder()"
+                                   Style="width:100%; font-family:monospace; font-size:1.1rem"
+                                   Change="@OnInputChanged" />
+                    @if (!string.IsNullOrEmpty(validationError))
+                    {
+                        <RadzenText Style="color:var(--rz-danger); font-size:0.85rem">⚠️ @validationError</RadzenText>
+                    }
+                    else if (!string.IsNullOrEmpty(inputValue) && fromType.HasValue)
+                    {
+                        <RadzenText Style="color:var(--rz-success); font-size:0.85rem">✅ Giá trị hợp lệ</RadzenText>
+                    }
+                </RadzenStack>
+            </RadzenColumn>
+
+            <!-- TO TYPE -->
+            <RadzenColumn Size="12" SizeMD="4">
+                <RadzenStack Gap="0.4rem">
+                    <RadzenLabel Text="Kiểu dữ liệu đích (To)" Style="font-weight:600" />
+                    <RadzenDropDown Data="@dataTypes"
+                                    @bind-Value="toType"
+                                    TextProperty="Name"
+                                    ValueProperty="Type"
+                                    Placeholder="Chọn kiểu đích..."
+                                    Style="width:100%" />
+                    @if (toInfo != null)
+                    {
+                        <RadzenAlert AlertStyle="AlertStyle.Success" Shade="Shade.Lighter" Size="AlertSize.ExtraSmall"
+                                     AllowClose="false" Style="margin-top:4px">
+                            @toInfo.Description
+                        </RadzenAlert>
+                    }
+                </RadzenStack>
+            </RadzenColumn>
+
+        </RadzenRow>
+
+        <!-- BUTTON -->
+        <RadzenStack Orientation="Orientation.Horizontal" Gap="1rem" Style="margin-top:1.5rem">
+            <RadzenButton Text="🔁 Chuyển đổi"
+                          ButtonStyle="ButtonStyle.Primary"
+                          Size="ButtonSize.Large"
+                          Click="@DoConvert"
+                          Disabled="@(!CanConvert())"
+                          Style="min-width:160px" />
+
+            <RadzenButton Text="↔ Hoán đổi"
+                          ButtonStyle="ButtonStyle.Secondary"
+                          Size="ButtonSize.Large"
+                          Click="@SwapTypes"
+                          Disabled="@(!fromType.HasValue || !toType.HasValue)"
+                          Icon="swap_horiz" />
+
+            <RadzenButton Text="🗑 Xóa"
+                          ButtonStyle="ButtonStyle.Light"
+                          Size="ButtonSize.Large"
+                          Click="@ClearAll" />
+        </RadzenStack>
+    </RadzenCard>
+
+    <!-- ═══════════════════════════════════════════
+         KẾT QUẢ CHUYỂN ĐỔI
+    ═══════════════════════════════════════════ -->
+    @if (result != null)
+    {
+        @if (!result.IsSuccess)
+        {
+            <RadzenAlert AlertStyle="AlertStyle.Danger" AllowClose="false">
+                <b>Lỗi:</b> @result.ErrorMessage
+            </RadzenAlert>
+        }
+        else
+        {
+            <!-- Kết quả nổi bật -->
+            <RadzenCard class="rz-p-4 result-card">
+                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="1.5rem" Wrap="FlexWrap.Wrap">
+                    <RadzenStack Gap="0.2rem" Style="flex:1">
+                        <RadzenText TextStyle="TextStyle.Overline" Style="opacity:0.6; letter-spacing:1px">NGUỒN (@result.FromType)</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H5" Style="font-family:monospace; font-weight:700; word-break:break-all">
+                            @result.InputValue
+                        </RadzenText>
+                    </RadzenStack>
+
+                    <RadzenIcon Icon="arrow_forward" Style="font-size:2rem; color:var(--rz-primary); flex-shrink:0" />
+
+                    <RadzenStack Gap="0.2rem" Style="flex:1">
+                        <RadzenText TextStyle="TextStyle.Overline" Style="opacity:0.6; letter-spacing:1px">KẾT QUẢ (@result.ToType)</RadzenText>
+                        <RadzenText TextStyle="TextStyle.H4" Style="font-family:monospace; font-weight:800; color:var(--rz-primary); word-break:break-all">
+                            @result.ResultValue
+                        </RadzenText>
+                    </RadzenStack>
+
+                    <RadzenButton Text="📋 Copy" ButtonStyle="ButtonStyle.Light" Size="ButtonSize.Small"
+                                  Click="@CopyResult" />
+                </RadzenStack>
+            </RadzenCard>
+
+            <!-- Diễn giải từng bước -->
+            <RadzenCard class="rz-p-4">
+                <RadzenText TextStyle="TextStyle.H6" Style="margin-bottom:1rem; font-weight:600">
+                    📖 Diễn giải cách chuyển đổi từng bước
+                </RadzenText>
+
+                @foreach (var step in result.Steps)
+                {
+                    <div class="step-box">
+                        <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Start" Gap="1rem">
+                            <div class="step-number">@step.StepNumber</div>
+                            <RadzenStack Gap="0.5rem" Style="flex:1">
+                                <RadzenText TextStyle="TextStyle.Subtitle1" Style="font-weight:700; margin:0">
+                                    @step.Title
+                                </RadzenText>
+                                <RadzenText TextStyle="TextStyle.Body2" Style="margin:0; opacity:0.85">
+                                    @step.Description
+                                </RadzenText>
+                                @if (!string.IsNullOrEmpty(step.Formula))
+                                {
+                                    <div class="formula-box">
+                                        <pre style="margin:0; white-space:pre-wrap; word-break:break-all">@step.Formula</pre>
+                                    </div>
+                                }
+                                @if (!string.IsNullOrEmpty(step.StepResult))
+                                {
+                                    <RadzenText Style="font-weight:600; color:var(--rz-primary); font-family:monospace">
+                                        → @step.StepResult
+                                    </RadzenText>
+                                }
+                            </RadzenStack>
+                        </RadzenStack>
+                    </div>
+                }
+            </RadzenCard>
+
+            <!-- Bảng tất cả kiểu dữ liệu -->
+            <RadzenCard class="rz-p-4">
+                <RadzenText TextStyle="TextStyle.H6" Style="margin-bottom:1rem; font-weight:600">
+                    📊 Xem tất cả kiểu dữ liệu cùng lúc
+                </RadzenText>
+                <RadzenDataGrid Data="@allTypesRows" TItem="AllTypesRow"
+                                GridLines="DataGridGridLines.Both"
+                                AllowSorting="false"
+                                Style="border-radius:8px">
+                    <Columns>
+                        <RadzenDataGridColumn TItem="AllTypesRow" Property="TypeName" Title="Kiểu dữ liệu" Width="180px">
+                            <Template Context="row">
+                                <RadzenStack Orientation="Orientation.Horizontal" AlignItems="AlignItems.Center" Gap="0.5rem">
+                                    @if (row.IsSource)
+                                    {
+                                        <RadzenBadge BadgeStyle="BadgeStyle.Primary" Text="Nguồn" />
+                                    }
+                                    <RadzenText Style="font-weight:@(row.IsSource ? "700" : "400"); font-family:monospace">
+                                        @row.TypeName
+                                    </RadzenText>
+                                </RadzenStack>
+                            </Template>
+                        </RadzenDataGridColumn>
+                        <RadzenDataGridColumn TItem="AllTypesRow" Property="Value" Title="Giá trị tương đương">
+                            <Template Context="row">
+                                <RadzenText Style="font-family:monospace; font-size:1rem; color:@(row.IsSource ? "var(--rz-primary)" : "inherit"); font-weight:@(row.IsSource ? "700" : "400")">
+                                    @row.Value
+                                </RadzenText>
+                            </Template>
+                        </RadzenDataGridColumn>
+                    </Columns>
+                </RadzenDataGrid>
+            </RadzenCard>
+        }
+    }
+
+    <!-- ═══════════════════════════════════════════
+         THÔNG TIN KIỂU DỮ LIỆU
+    ═══════════════════════════════════════════ -->
+    <RadzenCard class="rz-p-4">
+        <RadzenText TextStyle="TextStyle.H6" Style="margin-bottom:1rem; font-weight:600">
+            📚 Thông tin các kiểu dữ liệu
+        </RadzenText>
+        <RadzenRow Gap="1rem">
+            @foreach (var info in allDataTypeInfos)
+            {
+                <RadzenColumn Size="12" SizeMD="6" SizeLG="4">
+                    <div class="info-card @(fromType == info.Type ? "info-card--active" : "")">
+                        <RadzenStack Gap="0.3rem">
+                            <RadzenText TextStyle="TextStyle.Subtitle1" Style="font-weight:700; margin:0">@info.Name</RadzenText>
+                            <RadzenText TextStyle="TextStyle.Body2" Style="margin:0; opacity:0.8">@info.Description</RadzenText>
+                            <RadzenStack Orientation="Orientation.Horizontal" Gap="0.5rem">
+                                <RadzenBadge BadgeStyle="BadgeStyle.Light" Text="@($"Ví dụ: {info.Example}")" />
+                                @if (!string.IsNullOrEmpty(info.Prefix))
+                                {
+                                    <RadzenBadge BadgeStyle="BadgeStyle.Secondary" Text="@($"Prefix: {info.Prefix}")" />
+                                }
+                            </RadzenStack>
+                        </RadzenStack>
+                    </div>
+                </RadzenColumn>
+            }
+        </RadzenRow>
+    </RadzenCard>
+
+</RadzenStack>
+
+@code {
+    // ─── State ───────────────────────────────────
+    private DataType? fromType;
+    private DataType? toType;
+    private string inputValue = "";
+    private string validationError = "";
+    private ConversionResult? result;
+    private List<AllTypesRow> allTypesRows = new();
+
+    private List<DataTypeInfo> dataTypes = new();
+    private List<DataTypeInfo> allDataTypeInfos = new();
+    private DataTypeInfo? fromInfo => fromType.HasValue ? ConvSvc.GetInfo(fromType.Value) : null;
+    private DataTypeInfo? toInfo => toType.HasValue ? ConvSvc.GetInfo(toType.Value) : null;
+
+    [Inject] IJSRuntime JS { get; set; } = default!;
+
+    // ─── Init ────────────────────────────────────
+    protected override void OnInitialized()
+    {
+        allDataTypeInfos = ConvSvc.GetDataTypeInfos();
+        dataTypes = allDataTypeInfos;
+        fromType = DataType.DEC;
+        toType = DataType.HEX;
+    }
+
+    // ─── Helpers ─────────────────────────────────
+    private string GetPlaceholder() =>
+        fromInfo != null ? $"Nhập {fromInfo.Name} (vd: {fromInfo.Example})" : "Nhập giá trị...";
+
+    private bool CanConvert() =>
+        fromType.HasValue && toType.HasValue && !string.IsNullOrWhiteSpace(inputValue) && string.IsNullOrEmpty(validationError);
+
+    // ─── Events ──────────────────────────────────
+    private void OnFromTypeChanged(object val)
+    {
+        inputValue = "";
+        validationError = "";
+        result = null;
+        allTypesRows = new();
+    }
+
+    private void OnInputChanged(string val)
+    {
+        validationError = "";
+        result = null;
+        allTypesRows = new();
+
+        if (!string.IsNullOrWhiteSpace(val) && fromType.HasValue)
+        {
+            var (ok, err) = ConvSvc.Validate(val, fromType.Value);
+            if (!ok) validationError = err;
+        }
+    }
+
+    private void DoConvert()
+    {
+        if (!fromType.HasValue || !toType.HasValue) return;
+
+        result = ConvSvc.Convert(inputValue, fromType.Value, toType.Value);
+
+        if (result.IsSuccess)
+            allTypesRows = ConvSvc.ConvertToAllTypes(inputValue, fromType.Value);
+    }
+
+    private void SwapTypes()
+    {
+        if (!fromType.HasValue || !toType.HasValue) return;
+        var temp = fromType;
+        fromType = toType;
+        toType = temp;
+        inputValue = result?.IsSuccess == true ? result.ResultValue : "";
+        validationError = "";
+        result = null;
+        allTypesRows = new();
+    }
+
+    private void ClearAll()
+    {
+        inputValue = "";
+        validationError = "";
+        result = null;
+        allTypesRows = new();
+    }
+
+    private async Task CopyResult()
+    {
+        if (result?.IsSuccess == true)
+            await JS.InvokeVoidAsync("navigator.clipboard.writeText", result.ResultValue);
+    }
+}

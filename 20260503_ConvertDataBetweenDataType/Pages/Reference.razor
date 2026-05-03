@@ -1,0 +1,80 @@
+@page "/reference"
+
+<PageTitle>Bảng tham khảo - Data Type Converter</PageTitle>
+
+<RadzenStack Gap="1.5rem">
+
+    <RadzenCard class="rz-p-4 header-card">
+        <RadzenText TextStyle="TextStyle.H4" Style="margin:0; font-weight:700">📊 Bảng tham khảo chuyển đổi</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" Style="opacity:0.7; margin:0">
+            So sánh DEC / HEX / OCT / BIN / WORD từ 0 đến 255
+        </RadzenText>
+    </RadzenCard>
+
+    <RadzenCard class="rz-p-4">
+        <RadzenDataGrid Data="@referenceRows" TItem="ReferenceRow"
+                        AllowPaging="true" PageSize="32"
+                        AllowSorting="true"
+                        GridLines="DataGridGridLines.Both"
+                        Style="font-family:monospace">
+            <Columns>
+                <RadzenDataGridColumn TItem="ReferenceRow" Property="Dec" Title="DEC" Width="80px" TextAlign="TextAlign.Right" />
+                <RadzenDataGridColumn TItem="ReferenceRow" Property="Hex" Title="HEX" Width="80px" TextAlign="TextAlign.Center" />
+                <RadzenDataGridColumn TItem="ReferenceRow" Property="Oct" Title="OCT" Width="80px" TextAlign="TextAlign.Right" />
+                <RadzenDataGridColumn TItem="ReferenceRow" Property="Bin" Title="BIN" Width="160px" />
+                <RadzenDataGridColumn TItem="ReferenceRow" Property="WordBin" Title="WORD (16-bit)" Width="200px" />
+                <RadzenDataGridColumn TItem="ReferenceRow" Property="Ascii" Title="ASCII" Width="80px" TextAlign="TextAlign.Center" />
+            </Columns>
+        </RadzenDataGrid>
+    </RadzenCard>
+
+    <!-- Bảng mã ASCII -->
+    <RadzenCard class="rz-p-4">
+        <RadzenText TextStyle="TextStyle.H6" Style="font-weight:600; margin-bottom:1rem">📋 Bảng mã ASCII chuẩn (0–127)</RadzenText>
+        <RadzenText TextStyle="TextStyle.Body2" Style="margin-bottom:1rem; opacity:0.8">
+            ASCII (American Standard Code for Information Interchange) là bộ mã ký tự 7-bit, ánh xạ 128 ký tự (0–127) sang số nguyên.
+        </RadzenText>
+        <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.5rem;">
+            @for (int i = 32; i < 127; i++)
+            {
+                var code = i;
+                var ch = ((char)code).ToString();
+                <div class="ascii-cell">
+                    <span class="ascii-char">@ch</span>
+                    <span class="ascii-code">@code | @code.ToString("X2")</span>
+                </div>
+            }
+        </div>
+    </RadzenCard>
+
+</RadzenStack>
+
+@code {
+    private List<ReferenceRow> referenceRows = new();
+
+    protected override void OnInitialized()
+    {
+        for (int i = 0; i <= 255; i++)
+        {
+            referenceRows.Add(new ReferenceRow
+            {
+                Dec = i.ToString(),
+                Hex = i.ToString("X2"),
+                Oct = System.Convert.ToString(i, 8).PadLeft(3, '0'),
+                Bin = System.Convert.ToString(i, 2).PadLeft(8, '0'),
+                WordBin = System.Convert.ToString(i, 2).PadLeft(16, '0'),
+                Ascii = i >= 32 && i < 127 ? ((char)i).ToString() : i == 0 ? "NUL" : i == 10 ? "LF" : i == 13 ? "CR" : i == 9 ? "TAB" : "—"
+            });
+        }
+    }
+
+    class ReferenceRow
+    {
+        public string Dec { get; set; } = "";
+        public string Hex { get; set; } = "";
+        public string Oct { get; set; } = "";
+        public string Bin { get; set; } = "";
+        public string WordBin { get; set; } = "";
+        public string Ascii { get; set; } = "";
+    }
+}

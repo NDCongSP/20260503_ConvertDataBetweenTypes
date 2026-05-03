@@ -1,0 +1,37 @@
+@using Microsoft.AspNetCore.Components.Web
+@namespace ConvertDataBetweenDataType.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Type Converter</title>
+    <base href="~/" />
+
+    <!-- Radzen Theme -->
+    <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css" />
+
+    <!-- Custom styles -->
+    <link rel="stylesheet" href="css/app.css" />
+
+    <component type="typeof(HeadOutlet)" render-mode="ServerPrerendered" />
+</head>
+<body>
+    @RenderBody()
+
+    <div id="blazor-error-ui">
+        <environment include="Staging,Production">
+            Đã xảy ra lỗi không mong muốn. Vui lòng <a href="">tải lại trang</a>.
+        </environment>
+        <environment include="Development">
+            Xảy ra lỗi không xử lý được. Xem console trình duyệt để biết thêm.
+        </environment>
+        <a href="" class="dismiss">🗙</a>
+    </div>
+
+    <script src="_framework/blazor.server.js"></script>
+    <script src="_content/Radzen.Blazor/Radzen.Blazor.js"></script>
+</body>
+</html>

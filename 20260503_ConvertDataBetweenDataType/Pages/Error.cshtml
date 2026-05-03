@@ -1,0 +1,43 @@
+@page "/Error"
+@model ErrorModel
+@{
+    ViewData["Title"] = "Error";
+}
+
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Error</title>
+    <link rel="stylesheet" href="_content/Radzen.Blazor/css/material-base.css" />
+</head>
+<body>
+    <h1 class="text-danger">Error</h1>
+    <h2 class="text-danger">Đã có lỗi xảy ra khi xử lý yêu cầu của bạn.</h2>
+
+    @if (Model.ShowRequestId)
+    {
+        <p>
+            <strong>Request ID:</strong> <code>@Model.RequestId</code>
+        </p>
+    }
+
+    <h3>Thông tin phát triển</h3>
+    <p>Trang này chỉ hiển thị khi môi trường là Development.</p>
+</body>
+</html>
+
+@functions {
+    public class ErrorModel : Microsoft.AspNetCore.Mvc.RazorPages.PageModel
+    {
+        public string? RequestId { get; set; }
+        public bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+        [Microsoft.AspNetCore.Diagnostics.ResponseCache(Duration = 0, Location = Microsoft.AspNetCore.Mvc.ResponseCacheLocation.None, NoStore = true)]
+        public void OnGet()
+        {
+            RequestId = System.Diagnostics.Activity.Current?.Id ?? HttpContext.TraceIdentifier;
+        }
+    }
+}
